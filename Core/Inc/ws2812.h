@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 #include "main.h"
+#include "tim.h"
 
 /* 配置参数 */
 #define WS2812_NUM_LEDS     (96)     // LED数量
