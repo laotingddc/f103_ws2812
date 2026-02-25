@@ -24,7 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "ws2812.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,7 +45,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+static uint8_t rainbow_offset = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -56,7 +56,44 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/* HSV转RGB (h: 0-255, s: 0-255, v: 0-255) */
+void HSV2RGB(uint8_t h, uint8_t s, uint8_t v, uint8_t *r, uint8_t *g, uint8_t *b)
+{
+    uint8_t region, remainder, p, q, t;
+    
+    if (s == 0) {
+        *r = *g = *b = v;
+        return;
+    }
+    
+    region = h / 43;
+    remainder = (h - (region * 43)) * 6;
+    
+    p = (v * (255 - s)) >> 8;
+    q = (v * (255 - ((s * remainder) >> 8))) >> 8;
+    t = (v * (255 - ((s * (255 - remainder)) >> 8))) >> 8;
+    
+    switch (region) {
+        case 0:  *r = v; *g = t; *b = p; break;
+        case 1:  *r = q; *g = v; *b = p; break;
+        case 2:  *r = p; *g = v; *b = t; break;
+        case 3:  *r = p; *g = q; *b = v; break;
+        case 4:  *r = t; *g = p; *b = v; break;
+        default: *r = v; *g = p; *b = q; break;
+    }
+}
 
+/* 彩虹流水灯效果 */
+void Rainbow_Effect(void)
+{
+    uint8_t r, g, b;
+    for (uint16_t i = 0; i < WS2812_NUM_LEDS; i++) {
+        uint8_t hue = (i * 256 / WS2812_NUM_LEDS + rainbow_offset) & 0xFF;
+        HSV2RGB(hue, 255, 100, &r, &g, &b);
+        WS2812_SetPixel(i, r, g, b);
+    }
+    rainbow_offset++;
+}
 /* USER CODE END 0 */
 
 /**
@@ -91,15 +128,19 @@ int main(void)
   MX_DMA_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-
+  WS2812_Init(&htim4, TIM_CHANNEL_1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-    HAL_Delay(200);
+    //Rainbow_Effect();
+    WS2812_SetAll(255, 0, 0);
+    //WS2812_SetPixel(4,0, 255, 0);
+    WS2812_Update();
+
+    HAL_Delay(30);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -147,7 +188,12 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM4) {
+        WS2812_DMACompleteCallback();
+    }
+}
 /* USER CODE END 4 */
 
 /**
