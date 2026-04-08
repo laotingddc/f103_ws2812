@@ -9,6 +9,7 @@
 - 串口命令控制 (115200波特率)
 - 支持单个LED、范围LED、全部LED控制
 - 支持LED闪烁效果
+- 支持16路GPIO输出控制（高电平有效）
 - 包含GUI上位机软件
 
 ## 硬件连接
@@ -18,6 +19,29 @@
 | LED数据线 | PB6 (TIM4_CH1) |
 | 串口TX | PA9 |
 | 串口RX | PA10 |
+
+### 16路GPIO通道映射（CH0~CH15）
+
+| 通道 | 引脚 |
+|------|------|
+| CH0  | PA2  |
+| CH1  | PA3  |
+| CH2  | PA4  |
+| CH3  | PA5  |
+| CH4  | PA6  |
+| CH5  | PA7  |
+| CH6  | PA8  |
+| CH7  | PB0  |
+| CH8  | PB1  |
+| CH9  | PB2  |
+| CH10 | PB10 |
+| CH11 | PB11 |
+| CH12 | PB12 |
+| CH13 | PB13 |
+| CH14 | PB14 |
+| CH15 | PB15 |
+
+GPIO控制逻辑：高电平有效（`1=开`，`0=关`）。
 
 ## 编译
 
@@ -43,6 +67,9 @@ cmake --build build/Debug
 | 0x07 | 所有LED闪烁 | `AA 07 R G B PERIOD_L PERIOD_H SUM` |
 | 0x08 | 停止所有闪烁 | `AA 08 SUM` |
 | 0x09 | 设置范围LED | `AA 09 START_L START_H END_L END_H R G B SUM` |
+| 0x0A | 设置单路GPIO | `AA 0A CH_L CH_H VAL SUM` |
+| 0x0B | 设置16路GPIO位图 | `AA 0B MASK_L MASK_H SUM` |
+| 0x0C | 关闭所有GPIO | `AA 0C SUM` |
 
 校验和 = 从命令字节到校验和前一字节的累加和(低8位)
 
@@ -51,6 +78,11 @@ cmake --build build/Debug
 设置所有LED为红色:
 ```
 AA 02 FF 00 00 01
+```
+
+设置GPIO通道0为高电平:
+```
+AA 0A 00 00 01 0B
 ```
 
 ## 上位机软件
@@ -69,6 +101,7 @@ python tools/led_gui.py
 - 串口自动检测
 - 颜色选择器
 - LED控制按钮
+- 16路GPIO控制（单路/全开/全关/位图下发）
 - 原始数据发送
 - 通信日志
 

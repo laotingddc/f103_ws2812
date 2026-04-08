@@ -5,6 +5,7 @@
 #include "led_ctrl.h"
 #include "ws2812.h"
 #include "usart.h"
+#include "gpio.h"
 #include <string.h>
 
 /* 接收状态机 */
@@ -37,6 +38,50 @@ static BlinkCtrl_t blink_ctrl[WS2812_NUM_LEDS];
 static uint8_t blink_all_enabled = 0;
 static BlinkCtrl_t blink_all_ctrl;
 
+typedef struct {
+    GPIO_TypeDef *port;
+    uint16_t pin;
+} GpioChannelMap_t;
+
+/* GPIO通道映射（高电平有效）
+ * CH0~CH15:
+ * PA2,PA3,PA4,PA5,PA6,PA7,PA8,PB0,PB1,PB2,PB10,PB11,PB12,PB13,PB14,PB15
+ */
+static const GpioChannelMap_t gpio_channels[16] = {
+    {GPIOA, GPIO_PIN_2},
+    {GPIOA, GPIO_PIN_3},
+    {GPIOA, GPIO_PIN_4},
+    {GPIOA, GPIO_PIN_5},
+    {GPIOA, GPIO_PIN_6},
+    {GPIOA, GPIO_PIN_7},
+    {GPIOA, GPIO_PIN_8},
+    {GPIOB, GPIO_PIN_0},
+    {GPIOB, GPIO_PIN_1},
+    {GPIOB, GPIO_PIN_2},
+    {GPIOB, GPIO_PIN_10},
+    {GPIOB, GPIO_PIN_11},
+    {GPIOB, GPIO_PIN_12},
+    {GPIOB, GPIO_PIN_13},
+    {GPIOB, GPIO_PIN_14},
+    {GPIOB, GPIO_PIN_15}
+};
+
+static void gpio_set_channel(uint16_t ch, uint8_t val)
+{
+    if (ch < 16) {
+        HAL_GPIO_WritePin(gpio_channels[ch].port,
+                          gpio_channels[ch].pin,
+                          val ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    }
+}
+
+static void gpio_set_mask(uint16_t mask)
+{
+    for (uint16_t ch = 0; ch < 16; ch++) {
+        gpio_set_channel(ch, (mask >> ch) & 0x01);
+    }
+}
+
 /* 命令长度表 (不含帧头和校验和) */
 static uint8_t get_cmd_len(uint8_t cmd)
 {
@@ -50,6 +95,9 @@ static uint8_t get_cmd_len(uint8_t cmd)
         case CMD_BLINK_ALL:     return 6;  // cmd + rgb(3) + period(2)
         case CMD_BLINK_ALL_STOP:return 1;  // cmd
         case CMD_SET_RANGE:     return 8;  // cmd + start(2) + end(2) + rgb(3)
+        case CMD_GPIO_SET:      return 4;  // cmd + ch(2) + val(1)
+        case CMD_GPIO_SET_MASK: return 3;  // cmd + mask(2)
+        case CMD_GPIO_OFF_ALL:  return 1;  // cmd
         default: return 0;
     }
 }
@@ -71,6 +119,9 @@ static void process_command(void)
     uint16_t idx, start, end;
     uint8_t r, g, b;
     uint16_t period;
+    uint16_t ch, mask;
+    uint8_t gpio_val;
+    uint8_t need_ws2812_update = 1;
     
     switch (cmd) {
         case CMD_SET_PIXEL:
@@ -157,9 +208,29 @@ static void process_command(void)
                 }
             }
             break;
+
+        case CMD_GPIO_SET:
+            ch = rx_buf[1] | (rx_buf[2] << 8);
+            gpio_val = rx_buf[3] ? 1 : 0;
+            gpio_set_channel(ch, gpio_val);
+            need_ws2812_update = 0;
+            break;
+
+        case CMD_GPIO_SET_MASK:
+            mask = rx_buf[1] | (rx_buf[2] << 8);
+            gpio_set_mask(mask);
+            need_ws2812_update = 0;
+            break;
+
+        case CMD_GPIO_OFF_ALL:
+            gpio_set_mask(0x0000);
+            need_ws2812_update = 0;
+            break;
     }
     
-    WS2812_Update();
+    if (need_ws2812_update) {
+        WS2812_Update();
+    }
 }
 
 /**

@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['d:\\code\\f103_ws2812\\tools\\led_gui.py'],
+    ['led_gui.py'],
     pathex=[],
     binaries=[],
     datas=[],

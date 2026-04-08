@@ -19,6 +19,9 @@ CMD_BLINK_STOP = 0x06
 CMD_BLINK_ALL = 0x07
 CMD_BLINK_ALL_STOP = 0x08
 CMD_SET_RANGE = 0x09
+CMD_GPIO_SET = 0x0A
+CMD_GPIO_SET_MASK = 0x0B
+CMD_GPIO_OFF_ALL = 0x0C
 
 FRAME_HEAD = 0xAA
 
@@ -128,6 +131,21 @@ class LEDController:
                 r, g, b]
         self._send_frame(data)
 
+    def gpio_set(self, ch, value):
+        """设置单路GPIO: ch=0~15, value=0/1"""
+        data = [CMD_GPIO_SET, ch & 0xFF, (ch >> 8) & 0xFF, 1 if value else 0]
+        self._send_frame(data)
+
+    def gpio_set_mask(self, mask):
+        """设置16路GPIO位图"""
+        data = [CMD_GPIO_SET_MASK, mask & 0xFF, (mask >> 8) & 0xFF]
+        self._send_frame(data)
+
+    def gpio_off_all(self):
+        """关闭所有GPIO"""
+        data = [CMD_GPIO_OFF_ALL]
+        self._send_frame(data)
+
 
 def demo_test(led):
     """演示测试"""
@@ -205,6 +223,9 @@ def print_help():
   blinkall r g b p - 所有LED闪烁 (例: blinkall 0 0 255 1000)
   stop             - 停止所有闪烁
   stop i           - 停止单个LED闪烁
+  gpio i on/off    - 设置单路GPIO (例: gpio 0 on)
+  gpiomask mask    - 按位图设置16路GPIO (例: gpiomask 0x00FF)
+  gpiooff          - 关闭所有GPIO
   demo             - 运行演示
 
 原始数据发送:
@@ -259,6 +280,20 @@ def interactive_mode(led):
                     led.blink_all_stop()
                 else:
                     led.blink_stop(int(cmd[1]))
+            elif cmd_lower == "gpio" and len(cmd) == 3:
+                ch = int(cmd[1], 0)
+                state = cmd[2].lower()
+                if state in ("on", "1", "high"):
+                    led.gpio_set(ch, 1)
+                elif state in ("off", "0", "low"):
+                    led.gpio_set(ch, 0)
+                else:
+                    print("gpio命令格式: gpio <ch> on/off")
+            elif cmd_lower == "gpiomask" and len(cmd) == 2:
+                mask = int(cmd[1], 0)
+                led.gpio_set_mask(mask)
+            elif cmd_lower == "gpiooff":
+                led.gpio_off_all()
             else:
                 # 尝试作为十六进制数据发送
                 try:

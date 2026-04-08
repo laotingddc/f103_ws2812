@@ -20,9 +20,13 @@ CMD_BLINK_STOP = 0x06
 CMD_BLINK_ALL = 0x07
 CMD_BLINK_ALL_STOP = 0x08
 CMD_SET_RANGE = 0x09
+CMD_GPIO_SET = 0x0A
+CMD_GPIO_SET_MASK = 0x0B
+CMD_GPIO_OFF_ALL = 0x0C
 FRAME_HEAD = 0xAA
 
 NUM_LEDS = 96
+NUM_GPIOS = 16
 
 
 class LEDControllerGUI:
@@ -34,6 +38,7 @@ class LEDControllerGUI:
         self.ser = None
         self.running = False
         self.current_color = (255, 0, 0)
+        self.gpio_vars = [tk.IntVar(value=0) for _ in range(NUM_GPIOS)]
         
         self.create_widgets()
         self.refresh_ports()
@@ -133,6 +138,30 @@ class LEDControllerGUI:
         ttk.Button(blink_frame, text="停止单个闪烁", command=self.blink_stop).pack(side=tk.LEFT, padx=5)
         ttk.Button(blink_frame, text="所有LED闪烁", command=self.blink_all).pack(side=tk.LEFT, padx=5)
         ttk.Button(blink_frame, text="停止所有闪烁", command=self.blink_all_stop).pack(side=tk.LEFT, padx=5)
+
+        # GPIO控制区域
+        gpio_frame = ttk.LabelFrame(self.root, text="16路GPIO控制", padding=10)
+        gpio_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        gpio_row1 = ttk.Frame(gpio_frame)
+        gpio_row1.pack(fill=tk.X, pady=2)
+        ttk.Label(gpio_row1, text="通道:").pack(side=tk.LEFT)
+        self.gpio_channel = ttk.Spinbox(gpio_row1, from_=0, to=NUM_GPIOS-1, width=6)
+        self.gpio_channel.pack(side=tk.LEFT, padx=5)
+        ttk.Button(gpio_row1, text="单路打开", command=self.gpio_single_on).pack(side=tk.LEFT, padx=5)
+        ttk.Button(gpio_row1, text="单路关闭", command=self.gpio_single_off).pack(side=tk.LEFT, padx=5)
+
+        gpio_row2 = ttk.Frame(gpio_frame)
+        gpio_row2.pack(fill=tk.X, pady=2)
+        for i in range(NUM_GPIOS):
+            chk = ttk.Checkbutton(gpio_row2, text=f"CH{i}", variable=self.gpio_vars[i])
+            chk.grid(row=i // 8, column=i % 8, sticky="w", padx=4, pady=1)
+
+        gpio_row3 = ttk.Frame(gpio_frame)
+        gpio_row3.pack(fill=tk.X, pady=2)
+        ttk.Button(gpio_row3, text="按勾选发送", command=self.gpio_apply_mask).pack(side=tk.LEFT, padx=5)
+        ttk.Button(gpio_row3, text="GPIO全开", command=self.gpio_all_on).pack(side=tk.LEFT, padx=5)
+        ttk.Button(gpio_row3, text="GPIO全关", command=self.gpio_all_off).pack(side=tk.LEFT, padx=5)
 
         # 原始数据发送区域
         raw_frame = ttk.LabelFrame(self.root, text="原始数据发送", padding=10)
@@ -315,6 +344,56 @@ class LEDControllerGUI:
         """停止所有LED闪烁"""
         data = [CMD_BLINK_ALL_STOP]
         self.send_frame(data)
+
+    def _set_gpio_checks_from_mask(self, mask):
+        """根据位图更新GUI勾选状态"""
+        for i in range(NUM_GPIOS):
+            self.gpio_vars[i].set((mask >> i) & 0x01)
+
+    def _get_gpio_mask_from_checks(self):
+        """从GUI勾选状态计算位图"""
+        mask = 0
+        for i in range(NUM_GPIOS):
+            if self.gpio_vars[i].get():
+                mask |= (1 << i)
+        return mask
+
+    def gpio_single_on(self):
+        """单路GPIO打开"""
+        self.gpio_set_single(1)
+
+    def gpio_single_off(self):
+        """单路GPIO关闭"""
+        self.gpio_set_single(0)
+
+    def gpio_set_single(self, value):
+        """设置单路GPIO，value: 0/1"""
+        ch = int(self.gpio_channel.get())
+        if ch < 0 or ch >= NUM_GPIOS:
+            messagebox.showerror("错误", f"GPIO通道需在0~{NUM_GPIOS-1}")
+            return
+        data = [CMD_GPIO_SET, ch & 0xFF, (ch >> 8) & 0xFF, 1 if value else 0]
+        self.send_frame(data)
+        self.gpio_vars[ch].set(1 if value else 0)
+
+    def gpio_apply_mask(self):
+        """按勾选状态批量设置GPIO"""
+        mask = self._get_gpio_mask_from_checks()
+        data = [CMD_GPIO_SET_MASK, mask & 0xFF, (mask >> 8) & 0xFF]
+        self.send_frame(data)
+
+    def gpio_all_on(self):
+        """打开所有GPIO"""
+        mask = (1 << NUM_GPIOS) - 1
+        data = [CMD_GPIO_SET_MASK, mask & 0xFF, (mask >> 8) & 0xFF]
+        self.send_frame(data)
+        self._set_gpio_checks_from_mask(mask)
+
+    def gpio_all_off(self):
+        """关闭所有GPIO"""
+        data = [CMD_GPIO_OFF_ALL]
+        self.send_frame(data)
+        self._set_gpio_checks_from_mask(0)
 
     def send_raw(self):
         """发送原始十六进制数据"""

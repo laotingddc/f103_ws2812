@@ -16,6 +16,11 @@
  * 0x07 - 设置所有LED闪烁:  AA 07 R G B PERIOD_MS(2B) SUM
  * 0x08 - 停止所有LED闪烁:  AA 08 SUM
  * 0x09 - 设置范围LED颜色:  AA 09 START_L START_H END_L END_H R G B SUM
+ * 0x0A - 设置单路GPIO:     AA 0A CH_L CH_H VAL SUM
+ *                            CH: 0~15, VAL: 0=低电平(关), 1=高电平(开)
+ * 0x0B - 设置16路GPIO位图:  AA 0B MASK_L MASK_H SUM
+ *                            bit0->CH0 ... bit15->CH15, 1=开, 0=关
+ * 0x0C - 关闭所有GPIO:      AA 0C SUM
  * 
  * 校验和: 从命令字节开始到校验和前一字节的累加和(低8位)
  */
@@ -42,6 +47,9 @@ extern "C" {
 #define CMD_BLINK_ALL       0x07
 #define CMD_BLINK_ALL_STOP  0x08
 #define CMD_SET_RANGE       0x09
+#define CMD_GPIO_SET        0x0A
+#define CMD_GPIO_SET_MASK   0x0B
+#define CMD_GPIO_OFF_ALL    0x0C
 
 /* 函数声明 */
 void LED_Ctrl_Init(UART_HandleTypeDef *huart);
