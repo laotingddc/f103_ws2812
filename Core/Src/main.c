@@ -129,9 +129,9 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_USART1_UART_Init();
-  MX_TIM4_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-  WS2812_Init(&htim4, TIM_CHANNEL_1);
+  WS2812_Init(&htim1, TIM_CHANNEL_1);
   LED_Ctrl_Init(&huart1);
   /* USER CODE END 2 */
 
